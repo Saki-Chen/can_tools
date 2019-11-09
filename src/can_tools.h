@@ -23,7 +23,7 @@ public:
 
     bool fromByteData(double &dest, const uint8_t *src, size_t len = can_bytes_length) const;
 
-    BitMask getMask() const;
+    bool fetchMask(BitMask &mask) const;
 
     inline bool IsBigEndian() const
     {
@@ -70,6 +70,8 @@ public:
     {
         _transformer_list.clear();
     }
+
+    void visualizeCanMatrix() const;
 
 private:
     uint8_t *_can_data;

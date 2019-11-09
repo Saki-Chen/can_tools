@@ -4,6 +4,8 @@
 #include <cmath>
 #include <vector>
 #include <bitset>
+#include <string>
+#include <opencv2/opencv.hpp>
 #include <iostream>
 
 namespace esd_can_tools
@@ -16,9 +18,6 @@ CanDataTansformer::CanDataTansformer(int32_t start_bit, int32_t bit_length, doub
       _range(max_val - min_val),
       _is_big_endian(is_big_endian)
 {
-    // assert(((!_is_big_endian && _start_bit / 8 + _byte_covered_length - 1 < can_bytes_length) ||
-    //         (is_big_endian && _start_bit / 8 - _byte_covered_length + 1 >= 0)) &&
-    //        "error:out of range bit!");
 }
 
 bool CanDataTansformer::fromPhysicalData(const double src, uint8_t *dest, size_t len) const
@@ -91,17 +90,20 @@ bool CanDataTansformer::fromByteData(double &dest, const uint8_t *src, const siz
     return true;
 }
 
-BitMask CanDataTansformer::getMask() const
+bool CanDataTansformer::fetchMask(BitMask &mask) const
 {
     uint8_t bytes[can_bytes_length]{0};
-    fromPhysicalData(_max_val, bytes, can_bytes_length);
-    BitMask mask(0l);
-    for (int i = 0; i < can_bytes_length; ++i)
+    if (!fromPhysicalData(_max_val, bytes, can_bytes_length))
+    {
+        return false;
+    }
+    mask.reset();
+    for (int i = can_bytes_length - 1; i >= 0; --i)
     {
         mask <<= 8;
         mask |= bytes[i];
     }
-    return mask;
+    return true;
 }
 
 bool CanDataAdapter::add(const CanDataTansformer::Ptr &transformer)
@@ -109,14 +111,27 @@ bool CanDataAdapter::add(const CanDataTansformer::Ptr &transformer)
     if (_is_big_endian ^ transformer->IsBigEndian())
     {
         _transformer_list.emplace_back(nullptr);
-        std::cerr << "warn:CanDataAdapter::add: differen endian data,abort\n";
+        std::cerr << "warn:CanDataAdapter::add: "
+                  << _transformer_list.size()
+                  << "th tranformer, differen endian data,abort\n";
         return false;
     }
-    auto mask = transformer->getMask();
+
+    BitMask mask;
+    if (!transformer->fetchMask(mask))
+    {
+        _transformer_list.emplace_back(nullptr);
+        std::cerr << "warn:CanDataAdapter::add: "
+                  << _transformer_list.size()
+                  << "th tranformer, bit map overflow,abort\n";
+        return false;
+    }
     if ((mask & _mask).any())
     {
         _transformer_list.emplace_back(nullptr);
-        std::cerr << "warn:CanDataAdapter::add: bit map conflict,abort\n";
+        std::cerr << "warn:CanDataAdapter::add: "
+                  << _transformer_list.size()
+                  << "th tranformer, bit map conflict,abort\n";
         return false;
     }
 
@@ -129,12 +144,14 @@ bool CanDataAdapter::assign(size_t i, const double val) const
 {
     if (i >= _transformer_list.size())
     {
-        std::cerr << "warn:CanDataAdapter::assign: out of range,aort\n";
+        std::cerr << "warn:CanDataAdapter::assign: "
+                  << i + 1 << "th tranformer, out of range,aort\n";
         return false;
     }
     if (!_transformer_list[i])
     {
-        std::cerr << "warn:CanDataAdapter::assign: invalid tranformer,abort\n";
+        std::cerr << "warn:CanDataAdapter::assign: "
+                  << i + 1 << "th tranformer, invalid tranformer,abort\n";
         return false;
     }
     _transformer_list[i]->fromPhysicalData(val, _can_data, _len);
@@ -146,16 +163,45 @@ bool CanDataAdapter::fetch(size_t i, double &dest) const
 {
     if (i >= _transformer_list.size())
     {
-        std::cerr << "warn:CanDataAdapter::fetch: out of range,abort\n";
+        std::cerr << "warn:CanDataAdapter::fetch: "
+                  << i + 1 << "th tranformer,out of range,abort\n";
         return false;
     }
     if (!_transformer_list[i])
     {
-        std::cerr << "warn:CanDataAdapter::fetch: invalid tranformer,,abort\n";
+        std::cerr << "warn:CanDataAdapter::fetch: "
+                  << i + 1 << "th tranformer, invalid tranformer,,abort\n";
         return false;
     }
     _transformer_list[i]->fromByteData(dest, _can_data, _len);
     return true;
+}
+
+void CanDataAdapter::visualizeCanMatrix() const
+{
+    cv::Mat visualMatrix = cv::Mat::zeros(cv::Size(8, can_bytes_length), CV_8UC1);
+    BitMask bit_map;
+
+    for (int i = 0; i < _transformer_list.size(); ++i)
+    {
+        if (_transformer_list[i])
+        {
+            if (!_transformer_list[i]->fetchMask(bit_map))
+            {
+                continue;
+            }
+
+            for (int j = 0; j < bit_map.size(); ++j)
+            {
+                if (bit_map.test(j))
+                {
+                    visualMatrix.at<uint8_t>(j / 8, 7 - j % 8) = i + 1;
+                }
+            }
+        }
+    }
+
+    std::cout << visualMatrix << std::endl;
 }
 
 } // namespace esd_can_tools

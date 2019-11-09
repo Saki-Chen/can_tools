@@ -13,7 +13,15 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
-add_executable(test_code src/test_code.cpp)
-add_library(can_tools src/can_tools.cpp)
+find_package(OpenCV)
 
+include_directories(
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+
+add_library(can_tools src/can_tools.cpp)
+target_link_libraries(can_tools ${OpenCV_LIBRARIES})
+
+add_executable(test_code src/test_code.cpp )
 target_link_libraries(test_code can_tools)

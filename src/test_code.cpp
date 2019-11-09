@@ -1,5 +1,6 @@
 #include <iostream>
 #include "can_tools.h"
+
 using namespace esd_can_tools;
 int main()
 {
@@ -8,11 +9,12 @@ int main()
 
     double physical_data = 800;
 
-    CanDataAdapter adapter(can_byte, sizeof(can_byte), false);
-    adapter.add(std::make_shared<CanDataTansformer>(0, 10, 0, 1023, false));
-    adapter.add(std::make_shared<CanDataTansformer>(14, 10, 1, 1024, false));
-    adapter.add(std::make_shared<CanDataTansformer>(50, 14, 0, 50, false));
-    std::cout << adapter.getMask() << std::endl;
+    CanDataAdapter adapter(can_byte, sizeof(can_byte), true);
+    adapter.add(std::make_shared<CanDataTansformer>(20, 10, 0, 1023, true));
+    adapter.add(std::make_shared<CanDataTansformer>(40, 10, 1, 1024, true));
+    adapter.add(std::make_shared<CanDataTansformer>(56, 14, 0, 50, true));
+
+    adapter.visualizeCanMatrix();
     adapter.assign(0, 500);
     adapter.assign(1, 1024);
     adapter.assign(2, 50);
