@@ -27,9 +27,9 @@ public:
 
     CanDataTansformer(int32_t start_bit, int32_t bit_length, double min_val, double max_val, bool is_big_endian = false);
 
-    bool FromPhysicalData(const double src, uint8_t *dest, size_t len = can_bytes_length) const;
+    bool FromPhysicalData(const double src, uint8_t *dest, int len = can_bytes_length) const;
 
-    bool FromByteData(double &dest, const uint8_t *src, size_t len = can_bytes_length) const;
+    bool FromByteData(double &dest, const uint8_t *src, int len = can_bytes_length) const;
 
     bool FetchMask(BitMask &mask) const;
 
@@ -63,7 +63,7 @@ public:
     typedef std::shared_ptr<CanDataAdapter> Ptr;
     typedef std::shared_ptr<const CanDataAdapter> ConstPtr;
 
-    CanDataAdapter(uint32_t can_id, size_t signal_count, bool is_big_endian = false)
+    CanDataAdapter(int32_t can_id, int signal_count, bool is_big_endian = false)
         : _can_id(can_id), _is_big_endian(is_big_endian), _transformer_list(signal_count, nullptr) {}
 
     inline std::bitset<8 * can_bytes_length> getMask() const { return _mask; }
@@ -98,7 +98,7 @@ public:
 private:
     BitMask _mask = 0;
 
-    uint32_t _can_id;
+    int32_t _can_id;
     bool _is_big_endian;
     uint32_t _byte_count = 0;
     std::vector<CanDataTansformer::Ptr> _transformer_list;

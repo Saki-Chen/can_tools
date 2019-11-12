@@ -24,7 +24,7 @@ bool CanDataAdapter::Write(T_CMSG &can_msg, const std::vector<double> &val) cons
         _transformer_list[i]->FromPhysicalData(val[i], can_msg.data, sizeof(can_msg.data));
     }
     can_msg.id = _can_id;
-    can_msg.len |= 0b111 & _byte_count;
+    can_msg.len = 0b111 & _byte_count;
     return true;
 }
 

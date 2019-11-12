@@ -21,7 +21,7 @@ include_directories(
  
 
 add_library(can_tools SHARED src/can_tools.cpp)
-target_link_libraries(can_tools ${OpenCV_LIBRARIES})
+target_link_libraries(can_tools -lntcan ${OpenCV_LIBRARIES})
 
 add_executable(test_code src/test_code.cpp )
 target_link_libraries(test_code can_tools)
