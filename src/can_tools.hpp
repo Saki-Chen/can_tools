@@ -13,7 +13,7 @@ bool CanDataAdapter::Write(T_CMSG &can_msg, const std::vector<double> &val) cons
     {
         return false;
     }
-    for (size_t i = 0; i < _transformer_list.size(); ++i)
+    for (int i = 0; i < _transformer_list.size(); ++i)
     {
         if (!_transformer_list[i])
         {
@@ -38,7 +38,7 @@ bool CanDataAdapter::Read(const T_CMSG &can_msg, std::vector<double> &dest) cons
                   << _can_id << "!=" << can_msg.id << std::endl;
         return false;
     }
-    for (size_t i; i < _transformer_list.size(); ++i)
+    for (int i = 0; i < _transformer_list.size(); ++i)
     {
         if (!_transformer_list[i])
         {

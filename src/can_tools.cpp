@@ -173,7 +173,7 @@ void CanDataAdapter::VisualizeCanMatrix() const
 bool CanDataAdapter::CheckStatus() const
 {
     bool status = true;
-    for (size_t i = 0; i < _transformer_list.size(); ++i)
+    for (int i = 0; i < _transformer_list.size(); ++i)
     {
         if (nullptr == _transformer_list[i])
         {

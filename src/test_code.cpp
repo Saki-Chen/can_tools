@@ -36,7 +36,7 @@ int main()
   // std::cout << physical_data << std::endl;
   typedef std::unordered_map<uint32_t, CanDataAdapter::Ptr> CanIdMap;
 
-  uint32_t can_id1 = 0x3f;
+  uint32_t can_id1 = 0x34;
   uint32_t can_id2 = 0x33;
 
   CanIdMap id_map;
@@ -65,21 +65,25 @@ int main()
   int tx_len = 1;
   ntCan::CMSG rx_buf;
   int rx_len = 1;
-
-  id_map[can_id2]->Write(tx_buf, {0.5, 200});
-  auto temp=can_handle.Send(&tx_buf, &tx_len) ;
-  if (can_handle.Send(&tx_buf, &tx_len) == NTCAN_SUCCESS)
+  int n = 100;
+  while (n-- > 0)
   {
-    std::cout << "send success\n";
+    if (id_map[can_id2]->Write(tx_buf, {0.5, 100}) && can_handle.Send(&tx_buf, &tx_len) == NTCAN_SUCCESS)
+    {
+      std::cout << "send success\n";
+    }
+    tx_len = 1;
   }
+  std::vector<double> rx_val;
 
-  if (can_handle.Read(&rx_buf, &rx_len) == NTCAN_SUCCESS)
+  n = 100;
+  while (n-- > 0)
   {
-    std::vector<double> rx_val;
-
-    id_map[can_id1]->Read(rx_buf, rx_val);
-
-    std::cout << "read data[" << rx_val[0] << "," << rx_val[1] << "]\n";
+    if (can_handle.Read(&rx_buf, &rx_len) == NTCAN_SUCCESS && id_map[can_id1]->Read(rx_buf, rx_val))
+    {
+      std::cout << "read data[" << rx_val[0] << "," << rx_val[1] << "]\n";
+    }
+    rx_len = 1;
   }
   return 0;
 }
