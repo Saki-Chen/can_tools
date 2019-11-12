@@ -20,7 +20,7 @@ CanDataTansformer::CanDataTansformer(int32_t start_bit, int32_t bit_length, doub
 {
 }
 
-bool CanDataTansformer::fromPhysicalData(const double src, uint8_t *dest, size_t len) const
+bool CanDataTansformer::FromPhysicalData(const double src, uint8_t *dest, size_t len) const
 {
     assert(dest && "fromPhysicalData:nullptr");
     if (src > _max_val || src < _min_val)
@@ -58,7 +58,7 @@ bool CanDataTansformer::fromPhysicalData(const double src, uint8_t *dest, size_t
     return true;
 }
 
-bool CanDataTansformer::fromByteData(double &dest, const uint8_t *src, const size_t len) const
+bool CanDataTansformer::FromByteData(double &dest, const uint8_t *src, const size_t len) const
 {
     assert(src && "fromByteData:nullptr");
 
@@ -90,10 +90,10 @@ bool CanDataTansformer::fromByteData(double &dest, const uint8_t *src, const siz
     return true;
 }
 
-bool CanDataTansformer::fetchMask(BitMask &mask) const
+bool CanDataTansformer::FetchMask(BitMask &mask) const
 {
     uint8_t bytes[can_bytes_length]{0};
-    if (!fromPhysicalData(_max_val, bytes, can_bytes_length))
+    if (!FromPhysicalData(_max_val, bytes, can_bytes_length))
     {
         return false;
     }
@@ -106,78 +106,44 @@ bool CanDataTansformer::fetchMask(BitMask &mask) const
     return true;
 }
 
-bool CanDataAdapter::add(const CanDataTansformer::Ptr &transformer)
+bool CanDataAdapter::SetSignal(const int i, const CanDataTansformer::Ptr &transformer)
 {
+    if (i < 0 || i >= _transformer_list.size())
+    {
+        std::cerr << "warn:CanDataAdapter::SetSignal: index out of range\n";
+        return false;
+    }
+
     if (_is_big_endian ^ transformer->IsBigEndian())
     {
-        _transformer_list.emplace_back(nullptr);
-        std::cerr << "warn:CanDataAdapter::add: "
+        std::cerr << "warn:CanDataAdapter::SetSignal: "
                   << _transformer_list.size()
                   << "th tranformer, differen endian data,abort\n";
         return false;
     }
 
     BitMask mask;
-    if (!transformer->fetchMask(mask))
+    if (!transformer->FetchMask(mask))
     {
-        _transformer_list.emplace_back(nullptr);
-        std::cerr << "warn:CanDataAdapter::add: "
+        std::cerr << "warn:CanDataAdapter::SetSignal: "
                   << _transformer_list.size()
                   << "th tranformer, bit map overflow,abort\n";
         return false;
     }
     if ((mask & _mask).any())
     {
-        _transformer_list.emplace_back(nullptr);
-        std::cerr << "warn:CanDataAdapter::add: "
+        std::cerr << "warn:CanDataAdapter::SetSignal: "
                   << _transformer_list.size()
                   << "th tranformer, bit map conflict,abort\n";
         return false;
     }
-
-    _transformer_list.emplace_back(transformer);
+    _byte_count = std::max(_byte_count, transformer->end_byte());
+    _transformer_list[i] = transformer;
     _mask |= mask;
     return true;
 }
 
-bool CanDataAdapter::assign(size_t i, const double val) const
-{
-    if (i >= _transformer_list.size())
-    {
-        std::cerr << "warn:CanDataAdapter::assign: "
-                  << i + 1 << "th tranformer, out of range,aort\n";
-        return false;
-    }
-    if (!_transformer_list[i])
-    {
-        std::cerr << "warn:CanDataAdapter::assign: "
-                  << i + 1 << "th tranformer, invalid tranformer,abort\n";
-        return false;
-    }
-    _transformer_list[i]->fromPhysicalData(val, _can_data, _len);
-    return true;
-
-} // namespace esd_can_tools
-
-bool CanDataAdapter::fetch(size_t i, double &dest) const
-{
-    if (i >= _transformer_list.size())
-    {
-        std::cerr << "warn:CanDataAdapter::fetch: "
-                  << i + 1 << "th tranformer,out of range,abort\n";
-        return false;
-    }
-    if (!_transformer_list[i])
-    {
-        std::cerr << "warn:CanDataAdapter::fetch: "
-                  << i + 1 << "th tranformer, invalid tranformer,,abort\n";
-        return false;
-    }
-    _transformer_list[i]->fromByteData(dest, _can_data, _len);
-    return true;
-}
-
-void CanDataAdapter::visualizeCanMatrix() const
+void CanDataAdapter::VisualizeCanMatrix() const
 {
     cv::Mat visualMatrix = cv::Mat::zeros(cv::Size(8, can_bytes_length), CV_8UC1);
     BitMask bit_map;
@@ -186,7 +152,7 @@ void CanDataAdapter::visualizeCanMatrix() const
     {
         if (_transformer_list[i])
         {
-            if (!_transformer_list[i]->fetchMask(bit_map))
+            if (!_transformer_list[i]->FetchMask(bit_map))
             {
                 continue;
             }
@@ -202,6 +168,72 @@ void CanDataAdapter::visualizeCanMatrix() const
     }
 
     std::cout << visualMatrix << std::endl;
+}
+
+bool CanDataAdapter::CheckStatus() const
+{
+    bool status = true;
+    for (size_t i = 0; i < _transformer_list.size(); ++i)
+    {
+        if (nullptr == _transformer_list[i])
+        {
+            std::cerr << "signal " << i << " is not set yet, can id = " << std::hex << _can_id << std::endl;
+            status = false;
+        }
+    }
+    return status;
+}
+
+bool ntCanWrapper::SetBaudRate()
+{
+    uint32_t ret_baud = 0;
+    if (ntCan::canGetBaudrate(_h, &ret_baud) != NTCAN_SUCCESS)
+    {
+        return false;
+    }
+    if (NTCAN_NO_BAUDRATE != ret_baud && _baud != ret_baud)
+    {
+        std::cerr << "warn:ntCanWrapper::SetBaudRate: setting differen baud("
+                  << _baud << "!=" << ret_baud << ") for net: " << _net << std::endl
+                  << "use the baud in use(" << ret_baud << ") instead\n";
+        _baud = ret_baud;
+    }
+    if (ntCan::canSetBaudrate(_h, _baud) != NTCAN_SUCCESS)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool ntCanWrapper::Init()
+{
+    if (_is_init)
+    {
+        std::cerr << "ntCanWrapper::Init: already inited \n";
+        return false;
+    }
+
+    if (this->Open() != NTCAN_SUCCESS)
+    {
+        std::cerr << "ntCanWrapper::Init: open failed\n";
+        return false;
+    }
+
+    if (!this->SetBaudRate())
+    {
+        std::cerr << "ntCanWrapper::Init: set baud rate failed\n";
+        return false;
+    }
+
+    return _is_init = true;
+}
+
+ntCanWrapper::~ntCanWrapper()
+{
+    if (this->Close() != NTCAN_SUCCESS)
+    {
+        std::cerr << "error:ntCanWrapper::~ntCanWrapper:can not release can resource: handle:" << _h << std::endl;
+    }
 }
 
 } // namespace esd_can_tools

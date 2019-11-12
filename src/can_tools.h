@@ -6,6 +6,14 @@
 #include <vector>
 #include <memory>
 
+namespace ntCan
+{
+extern "C"
+{
+#include <ntcan.h>
+}
+} // namespace ntCan
+
 namespace esd_can_tools
 {
 constexpr int can_bytes_length = 8;
@@ -19,15 +27,25 @@ public:
 
     CanDataTansformer(int32_t start_bit, int32_t bit_length, double min_val, double max_val, bool is_big_endian = false);
 
-    bool fromPhysicalData(const double src, uint8_t *dest, size_t len = can_bytes_length) const;
+    bool FromPhysicalData(const double src, uint8_t *dest, size_t len = can_bytes_length) const;
 
-    bool fromByteData(double &dest, const uint8_t *src, size_t len = can_bytes_length) const;
+    bool FromByteData(double &dest, const uint8_t *src, size_t len = can_bytes_length) const;
 
-    bool fetchMask(BitMask &mask) const;
+    bool FetchMask(BitMask &mask) const;
 
     inline bool IsBigEndian() const
     {
         return _is_big_endian;
+    }
+
+    inline uint32_t start_byte() const
+    {
+        return _is_big_endian ? _start_bit / 8 + 1 - _byte_covered_length : _start_bit / 8;
+    }
+
+    inline uint32_t end_byte() const
+    {
+        return _is_big_endian ? _start_bit / 8 : _start_bit / 8 + _byte_covered_length - 1;
     }
 
 private:
@@ -45,16 +63,25 @@ public:
     typedef std::shared_ptr<CanDataAdapter> Ptr;
     typedef std::shared_ptr<const CanDataAdapter> ConstPtr;
 
-    CanDataAdapter(uint8_t *can_data, const int8_t len = can_bytes_length, bool is_big_endian = false)
-        : _can_data(can_data), _len(len), _is_big_endian(is_big_endian) {}
+    CanDataAdapter(uint32_t can_id, size_t signal_count, bool is_big_endian = false)
+        : _can_id(can_id), _is_big_endian(is_big_endian), _transformer_list(signal_count, nullptr) {}
 
     inline std::bitset<8 * can_bytes_length> getMask() const { return _mask; }
 
-    bool add(const CanDataTansformer::Ptr &transformer);
+    bool SetSignal(const int i, const CanDataTansformer::Ptr &transformer);
 
-    bool assign(size_t i, const double val) const;
+    inline bool SetSignal(const int i, int32_t start_bit, int32_t bit_length, double min_val, double max_val)
+    {
+        return SetSignal(i, std::make_shared<CanDataTansformer>(start_bit, bit_length, min_val, max_val, _is_big_endian));
+    }
 
-    bool fetch(size_t i, double &dest) const;
+    template <class T_CMSG>
+    bool Write(T_CMSG &can_msg, const std::vector<double> &val) const;
+
+    template <class T_CMSG>
+    bool Read(const T_CMSG &can_msg, std::vector<double> &dest) const;
+
+    bool CheckStatus() const;
 
     inline bool IsEmpty() const
     {
@@ -66,21 +93,110 @@ public:
         return _transformer_list.size();
     }
 
-    inline void clear()
-    {
-        _transformer_list.clear();
-    }
-
-    void visualizeCanMatrix() const;
+    void VisualizeCanMatrix() const;
 
 private:
-    uint8_t *_can_data;
-    const int8_t _len;
     BitMask _mask = 0;
+
+    uint32_t _can_id;
     bool _is_big_endian;
+    uint32_t _byte_count = 0;
     std::vector<CanDataTansformer::Ptr> _transformer_list;
 }; // class CanDataAdapter
 
+class ntCanWrapper
+{
+public:
+    ntCanWrapper(int net, uint32_t mode = 0, uint32_t baud = NTCAN_BAUD_500,
+                 int32_t rx_queue_size = 8, int32_t rx_timeout_ms = 100,
+                 int32_t tx_queue_size = 8, int32_t tx_timeout_ms = 100)
+        : _net(net), _mode(mode), _baud(baud),
+          _rxqueuesize(rx_queue_size),
+          _rxtimeout(rx_timeout_ms),
+          _txqueuesize(tx_queue_size), _txtimeout(tx_timeout_ms)
+    {
+    }
+
+    bool Init();
+
+    ~ntCanWrapper();
+
+    inline ntCan::NTCAN_RESULT Add(int32_t can_id)
+    {
+        return ntCan::canIdAdd(_h, can_id);
+    }
+
+    inline ntCan::NTCAN_RESULT Del(int32_t can_id)
+    {
+        return ntCan::canIdDelete(_h, can_id);
+    }
+
+    inline ntCan::NTCAN_RESULT Take(ntCan::CMSG *cmsg, int32_t *len)
+    {
+        return ntCan::canTake(_h, cmsg, len);
+    }
+
+    inline ntCan::NTCAN_RESULT Read(ntCan::CMSG *cmsg, int32_t *len, ntCan::OVERLAPPED *ovrlppd = nullptr)
+    {
+        return ntCan::canRead(_h, cmsg, len, ovrlppd);
+    }
+
+    inline ntCan::NTCAN_RESULT Send(ntCan::CMSG *cmsg, int32_t *len)
+    {
+        return ntCan::canSend(_h, cmsg, len);
+    }
+
+    inline ntCan::NTCAN_RESULT Write(ntCan::CMSG *cmsg, int32_t *len, ntCan::OVERLAPPED *ovrlppd = nullptr)
+    {
+        return ntCan::canWrite(_h, cmsg, len, ovrlppd);
+    }
+
+    inline ntCan::NTCAN_RESULT Ioctl(uint32_t ulCmd, void *pArg)
+    {
+        return ntCan::canIoctl(_h, ulCmd, pArg);
+    }
+
+protected:
+    bool SetBaudRate();
+
+    inline ntCan::NTCAN_RESULT Open()
+    {
+        return ntCan::canOpen(_net, _mode, _txqueuesize, _rxqueuesize, _txtimeout, _rxtimeout, &_h);
+    }
+
+    inline ntCan::NTCAN_RESULT Close()
+    {
+        return ntCan::canClose(_h);
+    }
+
+private:
+    /* logical net number (here: 0) */
+    int _net;
+
+    /* mode bits for canOpen */
+    uint32_t _mode;
+
+    /* baud rate */
+    uint32_t _baud;
+
+    /* maximum number of messages to receive */
+    int32_t _rxqueuesize;
+
+    /* timeout for receiving data in ms */
+    int32_t _rxtimeout;
+
+    /* maximum number of messages to transmit */
+    int32_t _txqueuesize;
+
+    /* timeout for transmit in ms */
+    int32_t _txtimeout;
+
+    /* can handle returned by canOpen() */
+    ntCan::NTCAN_HANDLE _h;
+
+    bool _is_init = false;
+
+}; // class ntCanWrapper
 } // namespace esd_can_tools
 
 #endif // ESD_CAN_TOOLS_H_
