@@ -155,6 +155,11 @@ public:
     {
         return ntCan::canIoctl(_h, ulCmd, pArg);
     }
+    
+    inline ntCan::NTCAN_RESULT close()
+    {
+        return ntCan::canClose(_h);
+    }
 
 protected:
     bool SetBaudRate();

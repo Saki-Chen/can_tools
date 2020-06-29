@@ -14,14 +14,17 @@ set(CMAKE_CXX_FLAGS_DEBUG "-Wall -g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 find_package(OpenCV)
+find_package(Eigen3)
 
 include_directories(
-    ${OpenCV_INCLUDE_DIRS}
 )
  
 
 add_library(can_tools SHARED src/can_tools.cpp)
-target_link_libraries(can_tools -lntcan ${OpenCV_LIBRARIES})
+target_link_libraries(can_tools -lntcan)
 
 add_executable(test_code src/test_code.cpp )
 target_link_libraries(test_code can_tools)
+
+add_executable(echo_can_msg src/echo_can_msg.cpp)
+target_link_libraries(echo_can_msg can_tools)

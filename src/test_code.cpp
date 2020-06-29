@@ -65,5 +65,6 @@ int main()
     tx_len = 1;
   }
 
+  can_handle.close();
   return 0;
 }

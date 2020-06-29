@@ -5,7 +5,7 @@
 #include <vector>
 #include <bitset>
 #include <string>
-#include <opencv2/opencv.hpp>
+#include <eigen3/Eigen/Core>
 #include <iostream>
 
 namespace esd_can_tools
@@ -145,7 +145,10 @@ bool CanDataAdapter::SetSignal(const int i, const CanDataTansformer::Ptr &transf
 
 void CanDataAdapter::VisualizeCanMatrix() const
 {
-    cv::Mat visualMatrix = cv::Mat::zeros(cv::Size(8, can_bytes_length), CV_8UC1);
+    // cv::Mat visualMatrix = cv::Mat::zeros(cv::Size(8, can_bytes_length), CV_8UC1);
+    // uint8_t visualMatrix[8 * can_bytes_length];
+    Eigen::Matrix<int,8,can_bytes_length> visualMatrix;
+    visualMatrix.setZero();
     BitMask bit_map;
 
     for (int i = 0; i < _transformer_list.size(); ++i)
@@ -161,13 +164,13 @@ void CanDataAdapter::VisualizeCanMatrix() const
             {
                 if (bit_map.test(j))
                 {
-                    visualMatrix.at<uint8_t>(j / 8, 7 - j % 8) = i + 1;
+                    visualMatrix(j / 8, j % 8) = i + 1;
                 }
             }
         }
     }
-
-    std::cout << visualMatrix << std::endl;
+    std::cout << "\ncan id: 0x" << std::hex << _can_id << "\ncan matrix:\n" 
+              << visualMatrix << std::endl;
 }
 
 bool CanDataAdapter::CheckStatus() const
